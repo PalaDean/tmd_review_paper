@@ -4,6 +4,8 @@ import re
 import time
 import pandas as pd
 import os
+from keyword_groups import KEYWORD_GROUPS  # Import the keyword groups from the separate file
+
 
 # Retrieve the API key from environment variables
 API_KEY = os.getenv("SCOPUS_API_KEY")
@@ -16,9 +18,6 @@ if API_KEY is None:
 # Rate limiting parameters
 REQUEST_DELAY = 2  # Time to wait between requests (in seconds)
 MAX_RETRIES = 3    # Number of retries for failed requests
-
-# Keywords to search for
-KEYWORDS = ["Energy Plus", "EnergyPlus"]
 
 # Function to fetch full text for a given DOI
 def fetch_full_text(doi):
