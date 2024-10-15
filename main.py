@@ -3,10 +3,15 @@ import csv
 import re
 import time
 import pandas as pd
+import os
 
-# Replace with your actual API key
-API_KEY = 
+# Retrieve the API key from environment variables
+API_KEY = os.getenv("SCOPUS_API_KEY")
 FULL_TEXT_URL = "https://api.elsevier.com/content/article/doi/{}?APIKey={}&httpAccept=application/xml"
+
+if API_KEY is None:
+    raise ValueError("No API key found! Please set the SCOPUS_API_KEY environment variable.")
+
 
 # Rate limiting parameters
 REQUEST_DELAY = 2  # Time to wait between requests (in seconds)
