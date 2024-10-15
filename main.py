@@ -5,7 +5,7 @@ import time
 import pandas as pd
 
 # Replace with your actual API key
-API_KEY = "bd4c3ec6c4cf2707a2dc4735525e9156"
+API_KEY = 
 FULL_TEXT_URL = "https://api.elsevier.com/content/article/doi/{}?APIKey={}&httpAccept=application/xml"
 
 # Rate limiting parameters
@@ -36,7 +36,7 @@ def count_keyword_occurrences(text, keywords):
 # Read the CSV file containing DOIs
 def process_papers(csv_filename):
     results = []
-    with open(csv_filename, newline='') as csvfile:
+    with open(csv_filename, newline='', encoding='utf-8-sig') as csvfile:
         reader = csv.DictReader(csvfile)
         
         for row in reader:
@@ -98,7 +98,7 @@ def aggregate_results(results):
 # Main execution
 if __name__ == "__main__":
     # Step 1: Process papers and collect results
-    csv_filename = 'papers.csv'  # Replace with your actual CSV file
+    csv_filename = 'scopus_doi.csv'  # Replace with your actual CSV file
     results = process_papers(csv_filename)
     
     # Step 2: Aggregate results by journal
