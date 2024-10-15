@@ -31,12 +31,20 @@ def fetch_full_text(doi):
         print(f"Failed to retrieve article {doi}: {response.status_code}")
         return None
 
-# Function to count occurrences of keywords in the full text
-def count_keyword_occurrences(text, keywords):
-    count_dict = {keyword: 0 for keyword in keywords}
-    for keyword in keywords:
-        count_dict[keyword] = len(re.findall(r'\b{}\b'.format(keyword), text, flags=re.IGNORECASE))
-    return count_dict
+# Function to check if any keyword variation occurs at least once in the full text
+def check_keyword_occurrences(text, keyword_groups):
+    flag_dict = {keyword: 0 for keyword in keyword_groups}  # Initialize to 0 (no occurrence)
+
+    # Iterate over each keyword and its variations
+    for keyword, variations in keyword_groups.items():
+        # Create a regex pattern that matches any variation of the keyword
+        pattern = "|".join(re.escape(variation) for variation in variations)
+        
+        # If any variation is found in the text, set the flag to 1 (occurs at least once)
+        if re.search(pattern, text, flags=re.IGNORECASE):
+            flag_dict[keyword] = 1
+    
+    return flag_dict
 
 # Read the CSV file containing DOIs
 def process_papers(csv_filename):
@@ -44,16 +52,20 @@ def process_papers(csv_filename):
     with open(csv_filename, newline='', encoding='utf-8-sig') as csvfile:
         reader = csv.DictReader(csvfile)
         
+        print(f"CSV Column Headers: {reader.fieldnames}")
+        
         for row in reader:
-            doi = row['DOI']
-            title = row['Title']
-            journal = row['Journal']
+            if not row:
+                continue
+            
+            doi = row['DOI'].strip()      # Strip spaces to clean up DOIs
+            title = row['Title'].strip()  # Strip spaces to clean up Titles
+            journal = row['Journal'].strip()  # Strip spaces to clean up Journals
             print(f"Fetching full text for DOI: {doi} - Title: {title}")
             
             retries = 0
             full_text = None
             
-            # Retry logic in case of failed requests
             while retries < MAX_RETRIES:
                 full_text = fetch_full_text(doi)
                 if full_text:
@@ -63,56 +75,56 @@ def process_papers(csv_filename):
                 time.sleep(REQUEST_DELAY)  # Rate limiting and retry delay
             
             if full_text:
-                # Count keyword occurrences in the full text
-                keyword_counts = count_keyword_occurrences(full_text, KEYWORDS)
+                # Check keyword occurrences in the full text (flag at least one occurrence)
+                keyword_flags = check_keyword_occurrences(full_text, KEYWORD_GROUPS)
                 
-                # If any keyword is found, add the journal to the results
-                if any(count > 0 for count in keyword_counts.values()):
+                # If any keyword occurs at least once, add the journal to the results
+                if any(flag == 1 for flag in keyword_flags.values()):
                     results.append({
-                        'Journal': journal,
                         'DOI': doi,
                         'Title': title,
-                        'Occurrences of Energy Plus': keyword_counts["Energy Plus"],
-                        'Occurrences of EnergyPlus': keyword_counts["EnergyPlus"]
+                        'Journal': journal,
+                        **keyword_flags  # Add keyword flags to the result dictionary
                     })
-                print(f"Keyword occurrences: {keyword_counts}\n")
+                print(f"Keyword flags: {keyword_flags}\n")
             else:
                 print(f"Failed to retrieve full text for {doi} after {MAX_RETRIES} attempts.\n")
             
-            # Respect rate limit between requests
             time.sleep(REQUEST_DELAY)
     
     return results
 
-# Function to aggregate results by journal and calculate occurrences
+# Function to aggregate results by keyword across journals
 def aggregate_results(results):
     df = pd.DataFrame(results)
     
-    # Aggregate by Journal and count the number of articles per journal where Energy Plus or EnergyPlus occurred
-    aggregated_df = df.groupby('Journal').agg({
-        'Occurrences of Energy Plus': 'sum',
-        'Occurrences of EnergyPlus': 'sum',
-        'DOI': 'count'  # Count how many articles per journal
-    }).rename(columns={'DOI': 'Number of Articles'})
+    # Aggregate by counting the number of journals that mention each keyword at least once
+    keyword_columns = list(KEYWORD_GROUPS.keys())
     
-    # Total occurrences of keywords in all articles
-    aggregated_df['Total Occurrences'] = aggregated_df['Occurrences of Energy Plus'] + aggregated_df['Occurrences of EnergyPlus']
+    # Calculate the number of unique journals where each keyword was mentioned
+    aggregated_df = df.groupby('Journal').agg({**{keyword: 'max' for keyword in keyword_columns}, 'DOI': 'count'}).rename(columns={'DOI': 'Number of Articles'})
     
-    return aggregated_df
+    # Count how many journals mentioned each keyword at least once
+    keyword_journal_counts = {keyword: aggregated_df[keyword].sum() for keyword in keyword_columns}
+    
+    # Create a DataFrame with the count of journals mentioning each keyword
+    keyword_summary_df = pd.DataFrame(keyword_journal_counts.items(), columns=['Keyword', 'Number of Journals Mentioned'])
+    
+    return keyword_summary_df
 
 # Main execution
 if __name__ == "__main__":
     # Step 1: Process papers and collect results
-    csv_filename = 'scopus_doi.csv'  # Replace with your actual CSV file
+    csv_filename = 'papers.csv'  # Replace with your actual CSV file
     results = process_papers(csv_filename)
     
-    # Step 2: Aggregate results by journal
+    # Step 2: Aggregate results by keyword
     aggregated_results = aggregate_results(results)
     
     # Step 3: Show the aggregated results
-    print("\nAggregated Results by Journal:")
+    print("\nAggregated Results by Keyword:")
     print(aggregated_results)
     
     # Optionally, save the aggregated results to a CSV file
-    aggregated_results.to_csv('aggregated_results.csv')
-    print("\nAggregated results saved to 'aggregated_results.csv'")
+    aggregated_results.to_csv('aggregated_results_by_keyword.csv')
+    print("\nAggregated results saved to 'aggregated_results_by_keyword.csv'")
